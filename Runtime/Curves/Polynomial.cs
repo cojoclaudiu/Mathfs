@@ -9,49 +9,27 @@ using UnityEngine.Serialization;
 namespace Freya {
 
 	/// <summary>A polynomial in the form <c>ax³+bx²+cx+d</c>, up to a cubic, with functions like derivatives, root finding, and more</summary>
-	[Serializable] public struct Polynomial {
+	[Serializable] public struct Polynomial : IPolynomialCubic<Polynomial, float> {
 
 		const MethodImplOptions INLINE = MethodImplOptions.AggressiveInlining;
 
 		/// <summary>A polynomial with all 0 coefficients. f(x) = 0</summary>
 		public static readonly Polynomial zero = new Polynomial( 0, 0, 0, 0 );
 
-		/// <summary>The cubic coefficient</summary>
-		[FormerlySerializedAs( "fCubic" )] public float c3;
-
-		/// <summary>The quadratic coefficient</summary>
-		[FormerlySerializedAs( "fQuadratic" )] public float c2;
-
-		/// <summary>The linear coefficient</summary>
-		[FormerlySerializedAs( "fLinear" )] public float c1;
+		/// <summary>A polynomial with all NaN coefficients</summary>
+		public static readonly Polynomial NaN = new Polynomial( float.NaN, float.NaN, float.NaN, float.NaN );
 
 		/// <summary>The constant coefficient</summary>
 		[FormerlySerializedAs( "fConstant" )] public float c0;
 
-		/// <summary>Get or set the coefficient of the given degree</summary>
-		/// <param name="degree">The degree of the coefficient you want to get/set. For example, 0 will return the constant coefficient, 3 will return the cubic coefficient</param>
-		public float this[ int degree ] {
-			get =>
-				degree switch {
-					0 => c0,
-					1 => c1,
-					2 => c2,
-					3 => c3,
-					_ => throw new IndexOutOfRangeException( "Polynomial coefficient degree/index has to be between 0 and 3" )
-				};
-			set {
-				_ = degree switch {
-					0 => c0 = value,
-					1 => c1 = value,
-					2 => c2 = value,
-					3 => c3 = value,
-					_ => throw new IndexOutOfRangeException( "Polynomial coefficient degree/index has to be between 0 and 3" )
-				};
-			}
-		}
+		/// <summary>The linear coefficient</summary>
+		[FormerlySerializedAs( "fLinear" )] public float c1;
 
-		/// <summary>The degree of the polynomial</summary>
-		public int Degree => GetPolynomialDegree( c0, c1, c2, c3 );
+		/// <summary>The quadratic coefficient</summary>
+		[FormerlySerializedAs( "fQuadratic" )] public float c2;
+
+		/// <summary>The cubic coefficient</summary>
+		[FormerlySerializedAs( "fCubic" )] public float c3;
 
 		/// <summary>Creates a polynomial up to a cubic</summary>
 		/// <param name="c0">The constant coefficient</param>
@@ -87,13 +65,59 @@ namespace Freya {
 		/// <inheritdoc cref="Polynomial(Vector4)"/>
 		public Polynomial( (float c0, float c1, float c2) coefficients ) => ( c0, c1, c2, c3 ) = ( coefficients.c0, coefficients.c1, coefficients.c2, 0 );
 
-		/// <summary>Evaluates the polynomial at the given value <c>t</c></summary>
-		/// <param name="t">The value to sample at</param>
-		public float Eval( float t ) => c3 * ( t * t * t ) + c2 * ( t * t ) + c1 * t + c0;
+		#region IPolynomialCubic
 
-		/// <summary>Differentiates this function, returning the n-th derivative of this polynomial</summary>
-		/// <param name="n">The number of times to differentiate this function. 0 returns the function itself, 1 returns the first derivative</param>
-		public Polynomial Differentiate( int n = 1 ) {
+		public float C0 {
+			[MethodImpl( INLINE )] get => c0;
+			[MethodImpl( INLINE )] set => c0 = value;
+		}
+		public float C1 {
+			[MethodImpl( INLINE )] get => c1;
+			[MethodImpl( INLINE )] set => c1 = value;
+		}
+		public float C2 {
+			[MethodImpl( INLINE )] get => c2;
+			[MethodImpl( INLINE )] set => c2 = value;
+		}
+		public float C3 {
+			[MethodImpl( INLINE )] get => c3;
+			[MethodImpl( INLINE )] set => c3 = value;
+		}
+		public Polynomial this[ int i ] {
+			[MethodImpl( INLINE )] get => i == 0 ? this : throw new IndexOutOfRangeException( "float polynomials don't have vector components" );
+			[MethodImpl( INLINE )] set => this = value;
+		}
+
+		public int Degree => GetPolynomialDegree( c0, c1, c2, c3 );
+
+		[MethodImpl( INLINE )] public float GetCoefficient( int degree ) =>
+			degree switch {
+				0 => c0,
+				1 => c1,
+				2 => c2,
+				3 => c3,
+				_ => throw new IndexOutOfRangeException( "Polynomial coefficient degree/index has to be between 0 and 3" )
+			};
+
+		[MethodImpl( INLINE )] public void SetCoefficient( int degree, float value ) {
+			_ = degree switch {
+				0 => c0 = value,
+				1 => c1 = value,
+				2 => c2 = value,
+				3 => c3 = value,
+				_ => throw new IndexOutOfRangeException( "Polynomial coefficient degree/index has to be between 0 and 3" )
+			};
+		}
+
+		public float Eval( float t ) {
+			float t2 = t * t;
+			float t3 = t * t2;
+			return c3 * t3 + c2 * t2 + c1 * t + c0;
+		}
+
+		[MethodImpl( INLINE )] public float Eval( float t, int n ) => Differentiate( n ).Eval( t );
+
+		[MethodImpl( INLINE )] public Polynomial Differentiate( int n = 1 ) {
 			return n switch {
 				0 => this,
 				1 => new Polynomial( c1, 2 * c2, 3 * c3, 0 ),
@@ -103,24 +127,110 @@ namespace Freya {
 			};
 		}
 
+		public Polynomial ScaleParameterSpace( float factor ) {
+			// ReSharper disable once CompareOfFloatsByEqualityOperator
+			if( factor == 1f )
+				return this;
+			float factor2 = factor * factor;
+			float factor3 = factor2 * factor;
+			return new Polynomial(
+				c0,
+				c1 / factor,
+				c2 / factor2,
+				c3 / factor3
+			);
+		}
+
 		/// <summary>Given an inner function g(x), returns f(g(x))</summary>
 		/// <param name="g0">The constant coefficient of the inner function g(x)</param>
 		/// <param name="g1">The linear coefficient of the inner function g(x)</param>
 		public Polynomial Compose( float g0, float g1 ) {
-			float ss = g1 * g1;
-			float sss = ss * g1;
-			float oo = g0 * g0;
-			float ooo = oo * g0;
-			float _3c3 = 3 * c3;
-			float c2g0 = c2 * g0;
-
+			float g0_2 = g0 * g0;
+			float g0_3 = g0 * g0_2;
+			float g1_2 = g1 * g1;
+			float g1_3 = g1 * g1_2;
 			return new Polynomial(
-				c3 * ooo + c2 * oo + c2g0 + c0,
-				g1 * ( _3c3 * oo + 2 * c2g0 + c1 ),
-				ss * ( _3c3 * g0 + c2 ),
-				sss * c3
+				c0 + c1 * g0 + c2 * g0_2 + c3 * g0_3,
+				c1 * g1 + c2 * 2 * g0 * g1 + c3 * 3 * g0_2 * g1,
+				c2 * g1_2 + c3 * 3 * g0 * g1_2,
+				c3 * g1_3
 			);
 		}
+
+		#endregion
+
+		/// <summary>Fits a cubic polynomial to pass through the given coordinates</summary>
+		public static Polynomial FitCubic( float x0, float x1, float x2, float x3, float y0, float y1, float y2, float y3 ) {
+			// precalcs
+			float i01 = x1 - x0;
+			float i02 = x2 - x0;
+			float i03 = x3 - x0;
+			float i12 = x2 - x1;
+			float i13 = x3 - x1;
+			float i23 = x3 - x2;
+			float x0x1 = x0 * x1;
+			float x0x2 = x0 * x2;
+			float x0x3 = x0 * x3;
+			float x1x2 = x1 * x2;
+			float x1x3 = x1 * x3;
+			float x2x3 = x2 * x3;
+			float x1x2x3 = x1 * x2x3;
+			float x0x2x3 = x0 * x2x3;
+			float x0x1x3 = x0 * x1x3;
+			float x0x1x2 = x0 * x1x2;
+			float x0plusx1 = x0 + x1;
+			float x0plusx1plusx2 = x0plusx1 + x2;
+			float x0plusx1plusx3 = x0plusx1 + x3;
+			float x2plusx3 = x2 + x3;
+			float x0plusx2plusx3 = x0 + x2plusx3;
+			float x1plusx2plusx3 = x1 + x2plusx3;
+			float x1x2plusx1x3plusx2x3 = ( x1x2 + x1x3 + x2x3 );
+			float x0x2plusx0x3plusx2x3 = ( x0x2 + x0x3 + x2x3 );
+			float x0x1plusx0x3plusx1x3 = ( x0x1 + x0x3 + x1x3 );
+			float x0x1plusx0x2plusx1x2 = ( x0x1 + x0x2 + x1x2 );
+
+			// scale factors
+			float scl0 = -( y0 / ( i01 * i02 * i03 ) );
+			float scl1 = +( y1 / ( i01 * i12 * i13 ) );
+			float scl2 = -( y2 / ( i02 * i12 * i23 ) );
+			float scl3 = +( y3 / ( i03 * i13 * i23 ) );
+
+			// polynomial form
+			float c0 = -( scl0 * x1x2x3 + scl1 * x0x2x3 + scl2 * x0x1x3 + scl3 * x0x1x2 );
+			float c1 = scl0 * x1x2plusx1x3plusx2x3 + scl1 * x0x2plusx0x3plusx2x3 + scl2 * x0x1plusx0x3plusx1x3 + scl3 * x0x1plusx0x2plusx1x2;
+			float c2 = -( scl0 * x1plusx2plusx3 + scl1 * x0plusx2plusx3 + scl2 * x0plusx1plusx3 + scl3 * x0plusx1plusx2 );
+			float c3 = scl0 + scl1 + scl2 + scl3;
+
+			return new Polynomial( (float)c0, (float)c1, (float)c2, (float)c3 );
+		}
+
+		/// <summary>Fits a cubic polynomial to pass through the given coordinates, assuming x0 = 0</summary>
+		public static Polynomial FitCubicFrom0( float x1, float x2, float x3, float y0, float y1, float y2, float y3 ) {
+			// precalcs
+			float i12 = x2 - x1;
+			float i13 = x3 - x1;
+			float i23 = x3 - x2;
+			float x1x2 = x1 * x2;
+			float x1x3 = x1 * x3;
+			float x2x3 = x2 * x3;
+			float x1x2x3 = x1 * x2x3;
+			float x2plusx3 = x2 + x3;
+
+			// scale factors
+			float scl0 = -( y0 / ( x1 * x2 * x3 ) );
+			float scl1 = +( y1 / ( x1 * i12 * i13 ) );
+			float scl2 = -( y2 / ( x2 * i12 * i23 ) );
+			float scl3 = +( y3 / ( x3 * i13 * i23 ) );
+
+			// polynomial form
+			float c0 = -( scl0 * x1x2x3 );
+			float c1 = scl0 * ( x1x2 + x1x3 + x2x3 ) + scl1 * x2x3 + scl2 * x1x3 + scl3 * x1x2;
+			float c2 = -( scl0 * ( x2plusx3 + x1 ) + scl1 * ( x2plusx3 ) + scl2 * ( x1 + x3 ) + scl3 * ( x1 + x2 ) );
+			float c3 = scl0 + scl1 + scl2 + scl3;
+
+			return new Polynomial( c0, c1, c2, c3 );
+		}
+
 
 		/// <summary>Splits the 0-1 range into two distinct polynomials at the given parameter value u, where both new curves cover the same total range with their individual 0-1 ranges</summary>
 		/// <param name="u">The parameter value to split at</param>
@@ -290,11 +400,11 @@ namespace Freya {
 			if( ValueAlmost0( rootContent ) )
 				return new ResultsMax2<float>( -b / ( 2 * a ) ); // two equivalent solutions at one point
 
-			if( rootContent >= 0 ) {
-				float root = Mathf.Sqrt( rootContent );
-				float r0 = ( -b - root ) / ( 2 * a ); // crosses at two points
-				float r1 = ( -b + root ) / ( 2 * a );
-				return new ResultsMax2<float>( Mathf.Min( r0, r1 ), Mathf.Max( r0, r1 ) );
+			if( rootContent >= 0 ) { // crosses at two points
+				float u = -b * -( b < 0 ? -1 : 1 ) * MathF.Sqrt( rootContent );
+				float r0 = u / ( 2 * a );
+				float r1 = ( 2 * c ) / u;
+				return new ResultsMax2<float>( MathF.Min( r0, r1 ), MathF.Max( r0, r1 ) );
 			}
 
 			return default; // no roots
@@ -326,10 +436,10 @@ namespace Freya {
 				return new ResultsMax3<float>( Mathfs.Cbrt( -q ) );
 			float discriminant = 4 * p * p * p + 27 * q * q;
 			if( discriminant < 0.00001 ) { // two or three roots guaranteed, use trig solution
-				float pre = 2 * Mathf.Sqrt( -p / 3 );
-				float acosInner = ( ( 3 * q ) / ( 2 * p ) ) * Mathf.Sqrt( -3 / p );
+				float pre = 2 * MathF.Sqrt( -p / 3 );
+				float acosInner = ( ( 3 * q ) / ( 2 * p ) ) * MathF.Sqrt( -3 / p );
 
-				float GetRoot( int k ) => pre * Mathf.Cos( ( 1f / 3f ) * Mathfs.Acos( acosInner.ClampNeg1to1() ) - ( Mathfs.TAU / 3f ) * k );
+				float GetRoot( int k ) => pre * MathF.Cos( ( 1f / 3f ) * Mathfs.Acos( acosInner.ClampNeg1to1() ) - ( Mathfs.TAU / 3f ) * k );
 				// if acos hits 0 or TAU/2, the offsets will have the same value,
 				// which means we have a double root plus one regular root on our hands
 				if( acosInner >= 0.9999f )
@@ -340,14 +450,14 @@ namespace Freya {
 			}
 
 			if( discriminant > 0 && p < 0 ) { // one root
-				float coshInner = ( 1f / 3f ) * Mathfs.Acosh( ( -3 * q.Abs() / ( 2 * p ) ) * Mathf.Sqrt( -3 / p ) );
-				float r = -2 * Mathfs.Sign( q ) * Mathf.Sqrt( -p / 3 ) * Mathfs.Cosh( coshInner );
+				float coshInner = ( 1f / 3f ) * Mathfs.Acosh( ( -3 * q.Abs() / ( 2 * p ) ) * MathF.Sqrt( -3 / p ) );
+				float r = -2 * Mathfs.Sign( q ) * MathF.Sqrt( -p / 3 ) * Mathfs.Cosh( coshInner );
 				return new ResultsMax3<float>( r );
 			}
 
 			if( p > 0 ) { // one root
-				float sinhInner = ( 1f / 3f ) * Mathfs.Asinh( ( ( 3 * q ) / ( 2 * p ) ) * Mathf.Sqrt( 3 / p ) );
-				float r = ( -2 * Mathf.Sqrt( p / 3 ) ) * Mathfs.Sinh( sinhInner );
+				float sinhInner = ( 1f / 3f ) * Mathfs.Asinh( ( ( 3 * q ) / ( 2 * p ) ) * MathF.Sqrt( 3 / p ) );
+				float r = ( -2 * MathF.Sqrt( p / 3 ) ) * Mathfs.Sinh( sinhInner );
 				return new ResultsMax3<float>( r );
 			}
 
@@ -386,15 +496,15 @@ namespace Freya {
 
 			bool hasAddedFirstTerm = false;
 			for( int c = 0; c < 4; c++ ) {
-				float value = this[c];
+				float value = GetCoefficient( c );
 				if( value != 0 ) {
 					if( hasAddedFirstTerm == false ) {
 						hasAddedFirstTerm = true;
-						strBuilder.Append( this[c] );
+						strBuilder.Append( GetCoefficient( c ) );
 					} else {
 						if( value > 0 )
 							strBuilder.Append( "+" );
-						strBuilder.Append( this[c] );
+						strBuilder.Append( GetCoefficient( c ) );
 						if( c > 0 )
 							strBuilder.Append( tPowerSuffixStr[c] );
 					}

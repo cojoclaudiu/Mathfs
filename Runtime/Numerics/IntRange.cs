@@ -1,13 +1,19 @@
 // by Freya Holmér (https://github.com/FreyaHolmer/Mathfs)
 
+using System;
 using System.Text;
 
 namespace Freya {
 
 	/// <summary>An integer range</summary>
-	public readonly struct IntRange {
-		public readonly int start;
-		public readonly int count;
+	[Serializable] public struct IntRange {
+
+		public static IntRange empty = new IntRange( 0, 0 );
+
+		public int start;
+		public int count;
+
+		public int this[ int i ] => start + i;
 
 		/// <summary>The last integer in the range</summary>
 		public int Last => start + count - 1;
@@ -27,12 +33,15 @@ namespace Freya {
 		/// <param name="value">The value to check if it's inside, or equal to the start or end</param>
 		public bool Contains( int value ) => value >= start && value <= Last;
 
+		/// <summary>Returns a copy of this range, without the last element (ie: count is reduced by 1)</summary>
+		public IntRange WithoutLast() => new(start, count - 1);
+
 		/// <summary>Create an integer range from start to end (inclusive)</summary>
 		/// <param name="first">The first integer</param>
 		/// <param name="last">The last integer</param>
 		public static IntRange FirstToLast( int first, int last ) => new IntRange( first, last - first + 1 );
 
-		static readonly StringBuilder toStrBuilder = new StringBuilder();
+		static StringBuilder toStrBuilder = new StringBuilder();
 
 		public override string ToString() {
 			toStrBuilder.Clear();
@@ -45,6 +54,16 @@ namespace Freya {
 			}
 			toStrBuilder.Append( " }" );
 			return toStrBuilder.ToString();
+		}
+
+		public IntRangeEnumerator GetEnumerator() => new IntRangeEnumerator( this );
+
+		public struct IntRangeEnumerator /*: IEnumerator<int>*/ {
+			IntRange intRange;
+			int currValue;
+			public IntRangeEnumerator( IntRange range ) => ( this.intRange, currValue ) = ( range, range.start - 1 );
+			public bool MoveNext() => ++currValue <= intRange.Last;
+			public int Current => currValue;
 		}
 
 	}

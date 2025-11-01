@@ -27,13 +27,13 @@ namespace Freya {
 		public float Center => ( a + b ) / 2;
 
 		/// <summary>The length/span of this value range</summary>
-		public float Length => Mathfs.Abs( b - a );
+		public float Length => MathF.Abs( b - a );
 
 		/// <summary>The minimum value of this range</summary>
-		public float Min => Mathfs.Min( a, b );
+		public float Min => MathF.Min( a, b );
 
 		/// <summary>The maximum value of this range</summary>
-		public float Max => Mathfs.Max( a, b );
+		public float Max => MathF.Max( a, b );
 
 		/// <summary>The direction of this value range. Returns -1 if <c>b</c> is greater than <c>a</c>, otherwise returns 1</summary>
 		public int Direction => b > a ? 1 : -1;
@@ -46,9 +46,9 @@ namespace Freya {
 		/// <param name="v">The value to get the normalized position of</param>
 		public float InverseLerp( float v ) => Mathfs.InverseLerp( a, b, v );
 
-		/// <summary>Returns whether or not this range contains the value <c>v</c></summary>
+		/// <summary>Returns whether or not this range contains the value <c>v</c> (inclusive)</summary>
 		/// <param name="v">The value to see if it's inside</param>
-		public bool Contains( float v ) => v >= Min && v <= Max;
+		public bool Contains( float v ) => v >= MathF.Min( a, b ) && v <= MathF.Max( a, b );
 
 		/// <summary>Returns whether or not this range contains the range <c>r</c></summary>
 		/// <param name="r">The range to see if it's inside</param>
@@ -69,14 +69,18 @@ namespace Freya {
 		/// <summary>Returns whether or not this range overlaps another range</summary>
 		/// <param name="other">The other range to test overlap with</param>
 		public bool Overlaps( FloatRange other ) {
-			float separation = Mathfs.Abs( other.Center - Center );
+			float separation = MathF.Abs( other.Center - Center );
 			float rTotal = ( other.Length + Length ) / 2;
 			return separation < rTotal;
 		}
 
 		/// <summary>Wraps/repeats the input value to stay within this range</summary>
 		/// <param name="value">The value to wrap/repeat in this interval</param>
-		public float Wrap( float value ) => a + Mathfs.Repeat( value - a, b - a );
+		public float Wrap( float value ) {
+			if( value >= a && value <= b )
+				return value;
+			return a + Mathfs.Repeat( value - a, b - a );
+		}
 
 		/// <summary>Clamps the input value to this range</summary>
 		/// <param name="value">The value to clamp to this interval</param>

@@ -16,7 +16,7 @@ namespace Freya {
 		/// <summary>Returns the angle of this vector, in radians</summary>
 		/// <param name="v">The vector to get the angle of. It does not have to be normalized</param>
 		/// <seealso cref="Mathfs.DirToAng"/>
-		[MethodImpl( INLINE )] public static float Angle( this Vector2 v ) => Mathf.Atan2( v.y, v.x );
+		[MethodImpl( INLINE )] public static float Angle( this Vector2 v ) => MathF.Atan2( v.y, v.x );
 
 		/// <summary>Rotates the vector 90 degrees clockwise (negative Z axis rotation)</summary>
 		[MethodImpl( INLINE )] public static Vector2 Rotate90CW( this Vector2 v ) => new Vector2( v.y, -v.x );
@@ -34,8 +34,8 @@ namespace Freya {
 		/// <param name="v">The vector to rotate</param>
 		/// <param name="angRad">The angle to rotate by, in radians</param>
 		public static Vector2 Rotate( this Vector2 v, float angRad ) {
-			float ca = Mathf.Cos( angRad );
-			float sa = Mathf.Sin( angRad );
+			float ca = MathF.Cos( angRad );
+			float sa = MathF.Sin( angRad );
 			return new Vector2( ca * v.x - sa * v.y, sa * v.x + ca * v.y );
 		}
 
@@ -50,6 +50,13 @@ namespace Freya {
 		/// <summary>Extracts the quaternion components into a Vector4</summary>
 		/// <param name="q">The quaternion to get the components of</param>
 		[MethodImpl( INLINE )] public static Vector4 ToVector4( this Quaternion q ) => new Vector4( q.x, q.y, q.z, q.w );
+
+		/// <summary>Converts to a rotation vector (axis-angle where the angle is embedded in the magnitude, in radians)</summary>
+		/// <param name="q">The quaternion to get the rotation vector of</param>
+		[MethodImpl( INLINE )] public static Vector3 ToRotationVector( this Quaternion q ) {
+			q.ToAngleAxis( out float angDeg, out Vector3 axis );
+			return axis * ( angDeg * Mathf.Deg2Rad );
+		}
 
 		#endregion
 
@@ -107,9 +114,14 @@ namespace Freya {
 		/// Equivalent to <c>v.normalized*mag</c></summary>
 		[MethodImpl( INLINE )] public static Vector2 WithMagnitude( this Vector2 v, float mag ) => v.normalized * mag;
 
-		/// <summary>Returns a vector with the same direction, but with the given magnitude.
-		/// Equivalent to <c>v.normalized*mag</c></summary>
+		/// <inheritdoc cref="WithMagnitude(Vector2,float)"/>
 		[MethodImpl( INLINE )] public static Vector3 WithMagnitude( this Vector3 v, float mag ) => v.normalized * mag;
+
+		/// <summary>Returns a vector with the same direction, but extending the magnitude by the given amount</summary>
+		[MethodImpl( INLINE )] public static Vector2 AddMagnitude( this Vector2 v, float extraMagnitude ) => v * ( 1 + extraMagnitude / v.magnitude );
+
+		/// <inheritdoc cref="AddMagnitude(Vector2,float)"/>
+		[MethodImpl( INLINE )] public static Vector3 AddMagnitude( this Vector3 v, float extraMagnitude ) => v * ( 1 + extraMagnitude / v.magnitude );
 
 		/// <summary>Returns the vector going from one position to another, also known as the displacement.
 		/// Equivalent to <c>target-v</c></summary>
@@ -165,6 +177,26 @@ namespace Freya {
 		/// <inheritdoc cref="ScaleAround(Vector2,Vector2,Vector2)"/>
 		[MethodImpl( INLINE )] public static Vector3 ScaleAround( this Vector3 p, Vector3 pivot, Vector3 scale ) => new(pivot.x + ( p.x - pivot.x ) * scale.x, pivot.y + ( p.y - pivot.y ) * scale.y, pivot.z + ( p.z - pivot.z ) * scale.z);
 
+		/// <summary>Projects the vector perpendicularly onto the other vector B</summary>
+		/// <param name="a">The vector to project with</param>
+		/// <param name="b">The vector to project perpendicularly against. The resulting vector is along this vector</param>
+		public static Vector3 Project( this Vector3 a, Vector3 b ) {
+			float denom = Vector3.Dot( b, b );
+			if( Mathfs.Approximately( denom, 0 ) )
+				throw new DivideByZeroException( "Can't project to a vector with 0 length" );
+			return b * ( Vector3.Dot( a, b ) / denom );
+		}
+
+		/// <summary>Projects the vector perpendicularly *from* the initial vector, onto the other vector B</summary>
+		/// <param name="a">The vector to project perpendicularly from</param>
+		/// <param name="b">The vector to project against. The resulting vector is along this vector</param>
+		public static Vector3 ProjectPerpFrom( this Vector3 a, Vector3 b ) {
+			float denom = Vector3.Dot( a, b );
+			if( Mathfs.Approximately( denom, 0 ) )
+				throw new DivideByZeroException( "Can't project to a vector with 0 length" );
+			return b * ( Vector3.Dot( a, a ) / denom );
+		}
+
 		#endregion
 
 		#region Quaternions
@@ -187,6 +219,36 @@ namespace Freya {
 		/// <summary>Rotates 180° around its local Z axis</summary>
 		[MethodImpl( INLINE )] public static Quaternion Rotate180AroundSelfZ( this Quaternion q ) => new(q.y, -q.x, q.w, -q.z);
 
+		/// <summary>Rotates this quaternion 180° so that its Y and Z axes are swapped</summary>
+		[MethodImpl( INLINE )] public static Quaternion SwapYZ( this Quaternion q ) {
+			return new Quaternion(
+				Mathfs.RSQRT2 * ( q.y - q.z ),
+				Mathfs.RSQRT2 * ( q.w - q.x ),
+				Mathfs.RSQRT2 * ( q.w + q.x ),
+				Mathfs.RSQRT2 * ( -q.y - q.z )
+			);
+		}
+
+		/// <summary>Rotates this quaternion 180° so that its Z and X axes are swapped</summary>
+		[MethodImpl( INLINE )] public static Quaternion SwapZX( this Quaternion q ) {
+			return new Quaternion(
+				Mathfs.RSQRT2 * ( q.w + q.y ),
+				Mathfs.RSQRT2 * ( q.z - q.x ),
+				Mathfs.RSQRT2 * ( q.w - q.y ),
+				Mathfs.RSQRT2 * ( -q.x - q.z )
+			);
+		}
+
+		/// <summary>Rotates this quaternion 180° so that its X and Y axes are swapped</summary>
+		[MethodImpl( INLINE )] public static Quaternion SwapXY( this Quaternion q ) {
+			return new Quaternion(
+				Mathfs.RSQRT2 * ( q.w - q.z ),
+				Mathfs.RSQRT2 * ( q.w + q.z ),
+				Mathfs.RSQRT2 * ( q.x - q.y ),
+				Mathfs.RSQRT2 * ( -q.x - q.y )
+			);
+		}
+
 		/// <summary>Returns an 180° rotated version of this quaternion around the given axis</summary>
 		/// <param name="q">The quaternion to rotate</param>
 		/// <param name="axis">The axis to rotate around</param>
@@ -207,8 +269,8 @@ namespace Freya {
 		/// <param name="space">The rotation space of the axis, if it should be intrinsic/self/local or extrinsic/"world"</param>
 		public static Quaternion RotateAround( this Quaternion q, Axis axis, float angRad, RotationSpace space = RotationSpace.Self ) {
 			float aHalf = angRad / 2;
-			float c = Mathf.Cos( aHalf );
-			float s = Mathf.Sin( aHalf );
+			float c = MathF.Cos( aHalf );
+			float s = MathF.Sin( aHalf );
 			float xc = q.x * c;
 			float yc = q.y * c;
 			float zc = q.z * c;
@@ -354,12 +416,12 @@ namespace Freya {
 		}
 
 		/// <summary>Returns the natural logarithm of a quaternion</summary>
-		public static Quaternion Log( this Quaternion q ) {
+		public static Quaternion Ln( this Quaternion q ) {
 			double vMagSq = (double)q.x * q.x + (double)q.y * q.y + (double)q.z * q.z;
 			double vMag = Math.Sqrt( vMagSq );
 			double qMag = Math.Sqrt( vMagSq + (double)q.w * q.w );
 			double theta = Math.Atan2( vMag, q.w );
-			double scV = vMag < 0.01f ? Mathfs.SincRcp( theta ) / qMag : theta / vMag;
+			double scV = vMag < 0.001 ? Mathfs.SincRcp( theta ) / qMag : theta / vMag;
 			return new Quaternion(
 				(float)( scV * q.x ),
 				(float)( scV * q.y ),
@@ -368,22 +430,93 @@ namespace Freya {
 			);
 		}
 
+		/// <summary>Returns the natural logarithm of a unit quaternion</summary>
+		public static Quaternion LnUnit( this Quaternion q ) {
+			double vMagSq = (double)q.x * q.x + (double)q.y * q.y + (double)q.z * q.z;
+			double vMag = Math.Sqrt( vMagSq );
+			double theta = Math.Atan2( vMag, q.w );
+			double scV = vMag < 0.001 ? Mathfs.SincRcp( theta ) : theta / vMag;
+			return new Quaternion(
+				(float)( scV * q.x ),
+				(float)( scV * q.y ),
+				(float)( scV * q.z ),
+				0f
+			);
+		}
+
 		/// <summary>Returns the natural exponent of a quaternion</summary>
 		public static Quaternion Exp( this Quaternion q ) {
-			Vector3 v = new(q.x, q.y, q.z);
-			double vMag = Math.Sqrt( (double)v.x * v.x + (double)v.y * v.y + (double)v.z * v.z );
+			double vMag = Math.Sqrt( (double)q.x * q.x + (double)q.y * q.y + (double)q.z * q.z );
 			double sc = Math.Exp( q.w );
 			double scV = sc * Mathfs.Sinc( vMag );
-			return new Quaternion( (float)( scV * v.x ), (float)( scV * v.y ), (float)( scV * v.z ), (float)( sc * Math.Cos( vMag ) ) );
+			return new Quaternion( (float)( scV * q.x ), (float)( scV * q.y ), (float)( scV * q.z ), (float)( sc * Math.Cos( vMag ) ) );
 		}
+
+		/// <summary>Returns the natural exponent of a pure imaginary quaternion</summary>
+		public static Quaternion ExpPureIm( this Quaternion q ) {
+			double vMag = Math.Sqrt( (double)q.x * q.x + (double)q.y * q.y + (double)q.z * q.z );
+			double scV = Mathfs.Sinc( vMag );
+			return new Quaternion( (float)( scV * q.x ), (float)( scV * q.y ), (float)( scV * q.z ), (float)Math.Cos( vMag ) );
+		}
+
+		/// <summary>Returns the quaternion raised to a real power</summary>
+		public static Quaternion Pow( this Quaternion q, float x ) {
+			return x switch {
+				0f => new Quaternion( 0, 0, 0, 1 ),
+				1f => q,
+				_  => q.Ln().Mul( x ).Exp()
+			};
+		}
+
+		/// <summary>Returns the unit quaternion raised to a real power</summary>
+		public static Quaternion PowUnit( this Quaternion q, float x ) {
+			return x switch {
+				0f => new Quaternion( 0, 0, 0, 1 ),
+				1f => q,
+				_  => q.LnUnit().Mul( x ).ExpPureIm()
+			};
+		}
+
+		/// <summary>Returns the imaginary part of a quaternion as a vector</summary>
+		public static Vector3 Imag( this Quaternion q ) => new Vector3( q.x, q.y, q.z );
+
+		/// <summary>Returns the squared magnitude of this quaternion</summary>
+		public static float SqrMagnitude( this Quaternion q ) => (float)( (double)q.w * q.w + (double)q.x * q.x + (double)q.y * q.y + (double)q.z * q.z );
+
+		/// <summary>Returns the magnitude of this quaternion</summary>
+		public static float Magnitude( this Quaternion q ) => MathF.Sqrt( q.SqrMagnitude() );
 
 		/// <summary>Multiplies a quaternion by a scalar</summary>
 		/// <param name="q">The quaternion to multiply</param>
 		/// <param name="c">The scalar value to multiply with</param>
 		public static Quaternion Mul( this Quaternion q, float c ) => new Quaternion( c * q.x, c * q.y, c * q.z, c * q.w );
 
+		/// <summary>Adds a quaternion to an existing quaternion</summary>
+		public static Quaternion Add( this Quaternion a, Quaternion b ) => new Quaternion( a.x + b.x, a.y + b.y, a.z + b.z, a.w + b.w );
+
+		/// <summary>Subtracts a quaternion from an existing quaternion</summary>
+		public static Quaternion Sub( this Quaternion a, Quaternion b ) => new Quaternion( a.x - b.x, a.y - b.y, a.z - b.z, a.w - b.w );
+
+		/// <summary>The conjugate of a quaternion</summary>
+		/// <param name="q">The quaternion to conjugate</param>
+		public static Quaternion Conjugate( this Quaternion q ) => new Quaternion( -q.x, -q.y, -q.z, q.w );
+
 		/// <inheritdoc cref="Quaternion.Inverse(Quaternion)"/>
 		public static Quaternion Inverse( this Quaternion q ) => Quaternion.Inverse( q );
+
+		/// <summary>The inverse of a unit quaternion, equivalent to the quaternion conjugate</summary>
+		public static Quaternion InverseUnit( this Quaternion q ) {
+			return new Quaternion( -q.x, -q.y, -q.z, q.w );
+		}
+
+		/// <summary>The inverse of a pure imaginary unit quaternion, where w is assumed to be 0</summary>
+		public static Quaternion InversePureIm( this Quaternion q ) {
+			float sqMag = q.x * q.x + q.y * q.y + q.z * q.z;
+			return new Quaternion( -q.x / sqMag, -q.y / sqMag, -q.z / sqMag, 0 );
+		}
+
+		/// <summary>Add to the magnitude of this quaternion</summary>
+		public static Quaternion AddMagnitude( this Quaternion q, float amount ) => amount == 0f ? q : q.Mul( 1 + amount / q.Magnitude() );
 
 		#endregion
 
@@ -394,10 +527,30 @@ namespace Freya {
 		/// <param name="quat">The local space rotation</param>
 		public static Quaternion TransformRotation( this Transform tf, Quaternion quat ) => tf.rotation * quat;
 
+		/// <summary>Transforms a bivector from local space to world space</summary>
+		/// <param name="tf">The transform to use</param>
+		/// <param name="b">The local space bivector</param>
+		public static Bivector3 TransformBivector( this Transform tf, Bivector3 b ) => new Matrix3x3( tf.localToWorldMatrix ).CofactorMatrix * b;
+
+		/// <summary>Transforms a bivector from local space to world space</summary>
+		/// <param name="tf">The transform to use</param>
+		/// <param name="b">The local space bivector</param>
+		public static float TransformBivector( this Transform tf, float b ) => new Matrix3x3( tf.localToWorldMatrix ).Determinant * b;
+
 		/// <summary>Transforms a rotation from world space to local space</summary>
 		/// <param name="tf">The transform to use</param>
 		/// <param name="quat">The world space rotation</param>
-		public static Quaternion InverseTransformRotation( this Transform tf, Quaternion quat ) => tf.rotation * quat;
+		public static Quaternion InverseTransformRotation( this Transform tf, Quaternion quat ) => Quaternion.Inverse( tf.rotation ) * quat;
+
+		/// <summary>Transforms a ray from world space to local space</summary>
+		/// <param name="tf">The transform to use</param>
+		/// <param name="ray">The world space ray</param>
+		public static Ray InverseTransformRay( this Transform tf, Ray ray ) => new(tf.InverseTransformPoint( ray.origin ), tf.InverseTransformDirection( ray.direction ));
+
+		/// <summary>Transforms a ray from local space to world space</summary>
+		/// <param name="tf">The transform to use</param>
+		/// <param name="ray">The local space ray</param>
+		public static Ray TransformRay( this Transform tf, Ray ray ) => new(tf.TransformPoint( ray.origin ), tf.TransformDirection( ray.direction ));
 
 		#endregion
 
@@ -437,10 +590,10 @@ namespace Freya {
 		/// <param name="r">The rectangle to expand</param>
 		/// <param name="p">The point to encapsulate</param>
 		public static Rect Encapsulate( this Rect r, Vector2 p ) {
-			r.xMax = Mathf.Max( r.xMax, p.x );
-			r.xMin = Mathf.Min( r.xMin, p.x );
-			r.yMax = Mathf.Max( r.yMax, p.y );
-			r.yMin = Mathf.Min( r.yMin, p.y );
+			r.xMax = MathF.Max( r.xMax, p.x );
+			r.xMin = MathF.Min( r.xMin, p.x );
+			r.yMax = MathF.Max( r.yMax, p.y );
+			r.yMin = MathF.Min( r.yMin, p.y );
 			return r;
 		}
 
@@ -460,6 +613,10 @@ namespace Freya {
 		/// <summary>The y axis range of this rectangle</summary>
 		/// <param name="rect">The rectangle to get the y range of</param>
 		public static FloatRange RangeY( this Rect rect ) => ( rect.yMin, rect.yMax );
+
+		/// <summary>Places the center of this rectangle at its position,
+		/// useful together with the constructor to define it by center instead of by corner</summary>
+		public static Rect ByCenter( this Rect r ) => new Rect( r ) { center = r.position };
 
 		#endregion
 
@@ -542,6 +699,14 @@ namespace Freya {
 
 		#region Matrix extensions
 
+		public static float AverageScale( this Matrix4x4 m ) {
+			return (
+				( (Vector3)m.GetColumn( 0 ) ).magnitude +
+				( (Vector3)m.GetColumn( 1 ) ).magnitude +
+				( (Vector3)m.GetColumn( 2 ) ).magnitude
+			) / 3;
+		}
+
 		public static Matrix4x1 MultiplyColumnVector( this Matrix4x4 m, Matrix4x1 v ) =>
 			new Matrix4x1(
 				m.m00 * v.m0 + m.m01 * v.m1 + m.m02 * v.m2 + m.m03 * v.m3,
@@ -552,6 +717,12 @@ namespace Freya {
 
 		public static Vector2Matrix4x1 MultiplyColumnVector( this Matrix4x4 m, Vector2Matrix4x1 v ) => new(m.MultiplyColumnVector( v.X ), m.MultiplyColumnVector( v.Y ));
 		public static Vector3Matrix4x1 MultiplyColumnVector( this Matrix4x4 m, Vector3Matrix4x1 v ) => new(m.MultiplyColumnVector( v.X ), m.MultiplyColumnVector( v.Y ), m.MultiplyColumnVector( v.Z ));
+		public static Vector4Matrix4x1 MultiplyColumnVector( this Matrix4x4 m, Vector4Matrix4x1 v ) => new(m.MultiplyColumnVector( v.X ), m.MultiplyColumnVector( v.Y ), m.MultiplyColumnVector( v.Z ), m.MultiplyColumnVector( v.W ));
+
+		/// <summary>Transforms a ray by this matrix</summary>
+		/// <param name="mtx">The matrix to use</param>
+		/// <param name="ray">The ray to transform</param>
+		public static Ray MultiplyRay( this Matrix4x4 mtx, Ray ray ) => new(mtx.MultiplyPoint3x4( ray.origin ), mtx.MultiplyVector( ray.direction ));
 
 		#endregion
 
@@ -560,7 +731,7 @@ namespace Freya {
 		#region Math operations
 
 		/// <inheritdoc cref="Mathfs.Sqrt(float)"/>
-		[MethodImpl( INLINE )] public static float Sqrt( this float value ) => Mathfs.Sqrt( value );
+		[MethodImpl( INLINE )] public static float Sqrt( this float value ) => MathF.Sqrt( value );
 
 		/// <inheritdoc cref="Mathfs.Sqrt(Vector2)"/>
 		[MethodImpl( INLINE )] public static Vector2 Sqrt( this Vector2 value ) => Mathfs.Sqrt( value );
@@ -572,10 +743,10 @@ namespace Freya {
 		[MethodImpl( INLINE )] public static Vector4 Sqrt( this Vector4 value ) => Mathfs.Sqrt( value );
 
 		/// <inheritdoc cref="Mathfs.Cbrt(float)"/>
-		[MethodImpl( INLINE )] public static float Cbrt( this float value ) => Mathfs.Cbrt( value );
+		[MethodImpl( INLINE )] public static float Cbrt( this float value ) => MathF.Cbrt( value );
 
 		/// <inheritdoc cref="Mathfs.Pow(float, float)"/>
-		[MethodImpl( INLINE )] public static float Pow( this float value, float exponent ) => Mathfs.Pow( value, exponent );
+		[MethodImpl( INLINE )] public static float Pow( this float value, float exponent ) => MathF.Pow( value, exponent );
 
 		/// <summary>Calculates exact positive integer powers</summary>
 		/// <param name="value"></param>
@@ -611,7 +782,7 @@ namespace Freya {
 		#region Absolute Values
 
 		/// <inheritdoc cref="Mathfs.Abs(float)"/>
-		[MethodImpl( INLINE )] public static float Abs( this float value ) => Mathfs.Abs( value );
+		[MethodImpl( INLINE )] public static float Abs( this float value ) => MathF.Abs( value );
 
 		/// <inheritdoc cref="Mathfs.Abs(int)"/>
 		[MethodImpl( INLINE )] public static int Abs( this int value ) => Mathfs.Abs( value );
@@ -658,6 +829,9 @@ namespace Freya {
 
 		/// <inheritdoc cref="Mathfs.ClampNeg1to1(float)"/>
 		[MethodImpl( INLINE )] public static float ClampNeg1to1( this float value ) => Mathfs.ClampNeg1to1( value );
+
+		/// <inheritdoc cref="Mathfs.ClampNeg1to1(float)"/>
+		[MethodImpl( INLINE )] public static double ClampNeg1to1( this double value ) => Mathfs.ClampNeg1to1( value );
 
 		/// <inheritdoc cref="Mathfs.ClampNeg1to1(Vector2)"/>
 		[MethodImpl( INLINE )] public static Vector2 ClampNeg1to1( this Vector2 v ) => Mathfs.ClampNeg1to1( v );

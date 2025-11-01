@@ -1,6 +1,7 @@
 // by Freya Holmér (https://github.com/FreyaHolmer/Mathfs)
 
 using System;
+using UnityEngine;
 
 namespace Freya {
 
@@ -13,10 +14,10 @@ namespace Freya {
 		public static readonly Rational MinValue = new(int.MinValue, 1);
 
 		/// <summary>The numerator of this number</summary>
-		public readonly int n;
+		[SerializeField] public int n;
 
 		/// <summary>The denominator of this number</summary>
-		public readonly int d;
+		[SerializeField] [NonZeroInteger] public int d;
 
 		/// <summary>Creates an exact representation of a rational number</summary>
 		/// <param name="num">The numerator of this number</param>
@@ -79,6 +80,22 @@ namespace Freya {
 		public static Rational Lerp( Rational a, Rational b, Rational t ) => a + t * ( b - a );
 		public static Rational InverseLerp( Rational a, Rational b, Rational v ) => ( v - a ) / ( b - a );
 
+		public static Rational Floor( Rational r ) {
+			if( r.n < 0 )
+				return ( r.n - r.d + 1 ) / r.d;
+			return r.n / r.d;
+		}
+
+		public static Rational Ceil( Rational r ) {
+			if( r.n > 0 )
+				return ( r.n + r.d - 1 ) / r.d;
+			return r.n / r.d;
+		}
+
+		public static Rational Round( Rational r ) {
+			return r.n < 0 == r.d < 0 ? ( r.n + r.d / 2 ) / r.d : ( r.n - r.d / 2 ) / r.d;
+		}
+
 		// type casting
 		public static implicit operator Rational( int n ) => new(n, 1);
 		public static explicit operator int( Rational r ) => r.IsInteger ? r.n : throw new ArithmeticException( $"Rational value {r} can't be cast to an integer" );
@@ -105,6 +122,8 @@ namespace Freya {
 		public static Rational operator *( int a, Rational b ) => checked( new(b.n * a, b.d) );
 		public static float operator *( Rational a, float b ) => ( a.n * b ) / a.d;
 		public static float operator *( float a, Rational b ) => ( b.n * a ) / b.d;
+		public static double operator *( Rational a, double b ) => ( a.n * b ) / a.d;
+		public static double operator *( double a, Rational b ) => ( b.n * a ) / b.d;
 
 		// division
 		public static Rational operator /( Rational a, Rational b ) => checked( new(a.n * b.d, a.d * b.n) );
@@ -112,6 +131,8 @@ namespace Freya {
 		public static Rational operator /( int a, Rational b ) => checked( new(a * b.d, b.n) );
 		public static float operator /( Rational a, float b ) => a.n / ( a.d * b );
 		public static float operator /( float a, Rational b ) => ( a * b.d ) / b.n;
+		public static double operator /( Rational a, double b ) => a.n / ( a.d * b );
+		public static double operator /( double a, Rational b ) => ( a * b.d ) / b.n;
 
 		// comparison operators
 		public static bool operator ==( Rational a, Rational b ) => a.CompareTo( b ) == 0;

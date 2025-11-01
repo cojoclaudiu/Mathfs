@@ -84,7 +84,7 @@ namespace Freya {
 
 		/// <summary>The number of curves in this spline</summary>
 		public int CurveCount {
-			[MethodImpl( INLINE )] get => ControlPointCount - ( IncludeEndpoints ? 1 : 3 );
+			[MethodImpl( INLINE )] get => ControlPointCount - ( IncludeEndpoints ? 1 : 2 );
 		}
 
 		/// <summary>The knot value at the start of the spline</summary>
@@ -235,7 +235,7 @@ namespace Freya {
 				// todo: by caching distances and only recalculating the necessary ones
 				for( int i = 1; i < ControlPointCount; i++ ) {
 					float sqDist = Vector2.SqrMagnitude( nodes[i - 1].pos - nodes[i].pos );
-					SetKnotInternal( i, SplineUtils.CalcCatRomKnot( nodes[i - 1].knot, sqDist, alpha ) );
+					SetKnotInternal( i, SplineUtils.CalcCatRomKnot( nodes[i - 1].knot, sqDist, alpha, true ) );
 				}
 			}
 		}

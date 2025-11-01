@@ -1,35 +1,19 @@
 // by Freya Holmér (https://github.com/FreyaHolmer/Mathfs)
 
 using System;
+using System.Runtime.CompilerServices;
 using UnityEngine;
 
 namespace Freya {
 
-	public struct Polynomial4D : IParamCurve3Diff<Vector4> {
+	public struct Polynomial4D : IPolynomialCubic<Polynomial4D, Vector4>, IParamCurve3Diff<Vector4> {
 
-		public Polynomial x;
-		public Polynomial y;
-		public Polynomial z;
-		public Polynomial w;
+		const MethodImplOptions INLINE = MethodImplOptions.AggressiveInlining;
 
-		public Vector4 C0 {
-			get => new(x.c0, y.c0, z.c0, w.c0);
-			set => ( x.c0, y.c0, z.c0, w.c0 ) = ( value.x, value.y, value.z, value.w );
-		}
-		public Vector4 C1 {
-			get => new(x.c1, y.c1, z.c1, w.c1);
-			set => ( x.c1, y.c1, z.c1, w.c1 ) = ( value.x, value.y, value.z, value.w );
-		}
-		public Vector4 C2 {
-			get => new(x.c2, y.c2, z.c2, w.c2);
-			set => ( x.c2, y.c2, z.c2, w.c2 ) = ( value.x, value.y, value.z, value.w );
-		}
-		public Vector4 C3 {
-			get => new(x.c3, y.c3, z.c3, w.c3);
-			set => ( x.c3, y.c3, z.c3, w.c3 ) = ( value.x, value.y, value.z, value.w );
-		}
+		/// <inheritdoc cref="Polynomial.NaN"/>
+		public static readonly Polynomial4D NaN = new Polynomial4D { x = Polynomial.NaN, y = Polynomial.NaN, z = Polynomial.NaN, w = Polynomial.NaN };
 
-		public Polynomial this[ int i ] => i switch { 0 => x, 1 => y, 2 => z, 4 => w, _ => throw new IndexOutOfRangeException( "Polynomial4D component index has to be either 0, 1, 2, or 3" ) };
+		public Polynomial x, y, z, w;
 
 		public Polynomial4D( Polynomial x, Polynomial y, Polynomial z, Polynomial w ) => ( this.x, this.y, this.z, this.w ) = ( x, y, z, w );
 
@@ -49,20 +33,145 @@ namespace Freya {
 			this.w = new Polynomial( c0.w, c1.w, c2.w, 0 );
 		}
 
+		/// <inheritdoc cref="Polynomial(float,float)"/>
+		public Polynomial4D( Vector4 c0, Vector4 c1 ) {
+			this.x = new Polynomial( c0.x, c1.x, 0, 0 );
+			this.y = new Polynomial( c0.y, c1.y, 0, 0 );
+			this.z = new Polynomial( c0.z, c1.z, 0, 0 );
+			this.w = new Polynomial( c0.w, c1.w, 0, 0 );
+		}
+
 		/// <inheritdoc cref="Polynomial(Matrix4x1)"/>
 		public Polynomial4D( Vector4Matrix4x1 coefficients ) => ( x, y, z, w ) = ( new Polynomial( coefficients.X ), new Polynomial( coefficients.Y ), new Polynomial( coefficients.Z ), new Polynomial( coefficients.W ) );
 
 		/// <inheritdoc cref="Polynomial(Matrix4x1)"/>
 		public Polynomial4D( Vector4Matrix3x1 coefficients ) => ( x, y, z, w ) = ( new Polynomial( coefficients.X ), new Polynomial( coefficients.Y ), new Polynomial( coefficients.Z ), new Polynomial( coefficients.W ) );
 
-		/// <inheritdoc cref="Polynomial.Eval(float)"/>
-		public Vector4 Eval( float t ) => new(x.Eval( t ), y.Eval( t ), z.Eval( t ));
+		#region IPolynomialCubic
 
-		/// <inheritdoc cref="Polynomial.Differentiate(int)"/>
-		public Polynomial4D Differentiate( int n = 1 ) => new(x.Differentiate( n ), y.Differentiate( n ), z.Differentiate( n ), w.Differentiate( n ));
+		public Vector4 C0 {
+			[MethodImpl( INLINE )] get => new(x.c0, y.c0, z.c0, w.c0);
+			[MethodImpl( INLINE )] set => ( x.c0, y.c0, z.c0, w.c0 ) = ( value.x, value.y, value.z, value.w );
+		}
+		public Vector4 C1 {
+			[MethodImpl( INLINE )] get => new(x.c1, y.c1, z.c1, w.c1);
+			[MethodImpl( INLINE )] set => ( x.c1, y.c1, z.c1, w.c1 ) = ( value.x, value.y, value.z, value.w );
+		}
+		public Vector4 C2 {
+			[MethodImpl( INLINE )] get => new(x.c2, y.c2, z.c2, w.c2);
+			[MethodImpl( INLINE )] set => ( x.c2, y.c2, z.c2, w.c2 ) = ( value.x, value.y, value.z, value.w );
+		}
+		public Vector4 C3 {
+			[MethodImpl( INLINE )] get => new(x.c3, y.c3, z.c3, w.c3);
+			[MethodImpl( INLINE )] set => ( x.c3, y.c3, z.c3, w.c3 ) = ( value.x, value.y, value.z, value.w );
+		}
 
-		/// <inheritdoc cref="Polynomial.Compose(float,float)"/>
+		public Polynomial this[ int i ] {
+			get => i switch { 0 => x, 1 => y, 2 => z, 4 => w, _ => throw new IndexOutOfRangeException( "Polynomial4D component index has to be either 0, 1, 2, or 3" ) };
+			set => _ = i switch { 0 => x = value, 1 => y = value, 2 => z = value, 3 => w = value, _ => throw new IndexOutOfRangeException() };
+		}
+
+		[MethodImpl( INLINE )] public Vector4 GetCoefficient( int degree ) =>
+			degree switch {
+				0 => C0,
+				1 => C1,
+				2 => C2,
+				3 => C3,
+				_ => throw new IndexOutOfRangeException( "Polynomial coefficient degree/index has to be between 0 and 3" )
+			};
+
+		[MethodImpl( INLINE )] public void SetCoefficient( int degree, Vector4 value ) {
+			_ = degree switch {
+				0 => C0 = value,
+				1 => C1 = value,
+				2 => C2 = value,
+				3 => C3 = value,
+				_ => throw new IndexOutOfRangeException( "Polynomial coefficient degree/index has to be between 0 and 3" )
+			};
+		}
+
+		public Vector4 Eval( float t ) {
+			float t2 = t * t;
+			float t3 = t2 * t;
+			return new Vector4(
+				x.c3 * t3 + x.c2 * t2 + x.c1 * t + x.c0,
+				y.c3 * t3 + y.c2 * t2 + y.c1 * t + y.c0,
+				z.c3 * t3 + z.c2 * t2 + z.c1 * t + z.c0,
+				w.c3 * t3 + w.c2 * t2 + w.c1 * t + w.c0
+			);
+		}
+
+		[MethodImpl( INLINE )] public Vector4 Eval( float t, int n ) => Differentiate( n ).Eval( t );
+
+		[MethodImpl( INLINE )] public Polynomial4D Differentiate( int n = 1 ) => new(x.Differentiate( n ), y.Differentiate( n ), z.Differentiate( n ), w.Differentiate( n ));
+
+		public Polynomial4D ScaleParameterSpace( float factor ) {
+			// ReSharper disable once CompareOfFloatsByEqualityOperator
+			if( factor == 1f )
+				return this;
+			float factor2 = factor * factor;
+			float factor3 = factor2 * factor;
+			return new Polynomial4D(
+				new Polynomial( x.c0, x.c1 / factor, x.c2 / factor2, x.c3 / factor3 ),
+				new Polynomial( y.c0, y.c1 / factor, y.c2 / factor2, y.c3 / factor3 ),
+				new Polynomial( z.c0, z.c1 / factor, z.c2 / factor2, z.c3 / factor3 ),
+				new Polynomial( w.c0, w.c1 / factor, w.c2 / factor2, w.c3 / factor3 )
+			);
+		}
+
 		public Polynomial4D Compose( float g0, float g1 ) => new(x.Compose( g0, g1 ), y.Compose( g0, g1 ), z.Compose( g0, g1 ), w.Compose( g0, g1 ));
+
+		#endregion
+
+		public static Polynomial4D FitCubicFrom0( float x1, float x2, float x3, Vector4 y0, Vector4 y1, Vector4 y2, Vector4 y3 ) {
+			// precalcs
+			float i12 = x2 - x1;
+			float i13 = x3 - x1;
+			float i23 = x3 - x2;
+			float x1x2 = x1 * x2;
+			float x1x3 = x1 * x3;
+			float x2x3 = x2 * x3;
+			float x1x2x3 = x1 * x2x3;
+			float x0plusx1plusx2 = x1 + x2;
+			float x0plusx1plusx3 = x1 + x3;
+			float x2plusx3 = x2 + x3;
+			float x1plusx2plusx3 = x1 + x2plusx3;
+			float x1x2plusx1x3plusx2x3 = ( x1x2 + x1x3 + x2x3 );
+
+			// scale factors
+			Vector4 scl0 = y0 / -( x1 * x2 * x3 );
+			Vector4 scl1 = y1 / +( x1 * i12 * i13 );
+			Vector4 scl2 = y2 / -( x2 * i12 * i23 );
+			Vector4 scl3 = y3 / +( x3 * i13 * i23 );
+
+			// polynomial form
+			Vector4 c0 = new(
+				-( scl0.x * x1x2x3 ),
+				-( scl0.y * x1x2x3 ),
+				-( scl0.z * x1x2x3 ),
+				-( scl0.w * x1x2x3 )
+			);
+			Vector4 c1 = new(
+				scl0.x * x1x2plusx1x3plusx2x3 + scl1.x * x2x3 + scl2.x * x1x3 + scl3.x * x1x2,
+				scl0.y * x1x2plusx1x3plusx2x3 + scl1.y * x2x3 + scl2.y * x1x3 + scl3.y * x1x2,
+				scl0.z * x1x2plusx1x3plusx2x3 + scl1.z * x2x3 + scl2.z * x1x3 + scl3.z * x1x2,
+				scl0.w * x1x2plusx1x3plusx2x3 + scl1.w * x2x3 + scl2.w * x1x3 + scl3.w * x1x2
+			);
+			Vector4 c2 = new(
+				-( scl0.x * x1plusx2plusx3 + scl1.x * x2plusx3 + scl2.x * x0plusx1plusx3 + scl3.x * x0plusx1plusx2 ),
+				-( scl0.y * x1plusx2plusx3 + scl1.y * x2plusx3 + scl2.y * x0plusx1plusx3 + scl3.y * x0plusx1plusx2 ),
+				-( scl0.z * x1plusx2plusx3 + scl1.z * x2plusx3 + scl2.z * x0plusx1plusx3 + scl3.z * x0plusx1plusx2 ),
+				-( scl0.w * x1plusx2plusx3 + scl1.w * x2plusx3 + scl2.w * x0plusx1plusx3 + scl3.w * x0plusx1plusx2 )
+			);
+			Vector4 c3 = new(
+				scl0.x + scl1.x + scl2.x + scl3.x,
+				scl0.y + scl1.y + scl2.y + scl3.y,
+				scl0.z + scl1.z + scl2.z + scl3.z,
+				scl0.w + scl1.w + scl2.w + scl3.w
+			);
+
+			return new Polynomial4D( c0, c1, c2, c3 );
+		}
 
 		/// <inheritdoc cref="Polynomial2D.GetBounds01"/>
 		public (FloatRange x, FloatRange y, FloatRange z, FloatRange w) GetBounds01() => ( x.OutputRange01, y.OutputRange01, z.OutputRange01, w.OutputRange01 );
@@ -78,7 +187,7 @@ namespace Freya {
 
 		#region IParamCurve3Diff interface implementations
 
-		public int Degree => Mathf.Max( x.Degree, y.Degree, z.Degree, w.Degree );
+		public int Degree => Mathfs.Max( x.Degree, y.Degree, z.Degree, w.Degree );
 		public Vector4 EvalDerivative( float t ) => Differentiate().Eval( t );
 		public Vector4 EvalSecondDerivative( float t ) => Differentiate( 2 ).Eval( t );
 		public Vector4 EvalThirdDerivative( float t = 0 ) => Differentiate( 3 ).Eval( 0 );
